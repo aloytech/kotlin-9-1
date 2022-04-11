@@ -9,14 +9,15 @@ object ChatService {
 
     fun newMessage(fromId: Int, toId: Int, text: String) {
 
-        val firstFilterChat = chatsMap.filterValues { it.firstId == fromId || it.secondId == fromId }
-        val fullFilterChat = firstFilterChat.filterValues { it.firstId == toId || it.secondId == toId }
+        val filteredChat = chatsMap
+            .filterValues { it.firstId == fromId || it.secondId == fromId }
+            .filterValues { it.firstId == toId || it.secondId == toId }
         var thisChatId = currentChatId
-        if (fullFilterChat.isEmpty()) {
+        if (filteredChat.isEmpty()) {
             chatsMap[thisChatId] = Chat(currentChatId, fromId, toId)
             currentChatId++
         } else {
-            thisChatId = fullFilterChat.keys.first()
+            thisChatId = filteredChat.keys.first()
             chatsMap[thisChatId]?.isRead = false
         }
         messages.add(
@@ -33,11 +34,13 @@ object ChatService {
     }
 
     private fun getIndexById(mid: Int): Int? {
-        val messageList = messages.filter { it.mid == mid }
-        if (messageList.isEmpty()) {
-            return null
-        }
-        return messages.indexOf(messageList[0])
+        val index = messages
+            .filter { it.mid == mid }
+            .ifEmpty() {
+                return null
+            }
+            .let { messages.indexOf(it[0]) }
+        return index
     }
 
     fun getUnreadChatsCount(): Int {
@@ -47,21 +50,23 @@ object ChatService {
 
     fun getChatMessages(cid: Int, offset: Int = 0, count: Int): List<Message> {
         if (chatsMap.containsKey(cid)) {
-            val messageList = messages.filter { it.chatId == cid }
-            var lastIndex = messageList.size
-            if (offset + count < messageList.size) {
-                lastIndex = offset + count
-            }
-            val outMessageList = messageList.subList(offset, lastIndex)
-            messages.removeAll(outMessageList)
-            var unreadMessages = outMessageList.filter { !it.isRead }
-            val readMessages = unreadMessages.map { readMsg(it) }
+            val messageList = messages
+                .filter { it.chatId == cid }
+                .let {
+                    var lastIndex = it.size
+                    if (offset + count < it.size) {
+                        lastIndex = offset + count
+                    }
+                    it.subList(offset, lastIndex)
+                }
+            messages.removeAll(messageList)
+            var readMessages = messageList.map { readMsg(it) }
             messages.addAll(readMessages)
-            unreadMessages = messages.filter { it.chatId == cid && !it.isRead }
-            if (unreadMessages.isEmpty()) {
-                chatsMap[cid]?.isRead = true
-            }
-            return outMessageList
+            messages.filter { it.chatId == cid && !it.isRead }
+                .ifEmpty() {
+                    chatsMap[cid]?.isRead = true
+                }
+            return readMessages
         } else {
             throw ChatNotExistException("Chat with $cid not exists")
         }
@@ -73,10 +78,9 @@ object ChatService {
     }
 
     fun deleteMessage(mid: Int) {
-        val message = messages.filter { it.mid == mid }
-        if (message.isEmpty()) {
-            throw MessageNotExistException("Message with $mid not exists")
-        }
+        val message = messages
+            .filter { it.mid == mid }
+            .ifEmpty { throw MessageNotExistException("Message with $mid not exists") }
         val messageChatId = message[0].chatId
         messages.removeAll(message)
         if (messages.none { it.chatId == messageChatId }) {
@@ -85,10 +89,11 @@ object ChatService {
     }
 
     fun deleteChat(cid: Int) {
-        val chat = chatsMap.filterValues { it.chatId == cid }
-        if (chat.isEmpty()) {
-            throw ChatNotExistException("Chat with $cid not exists")
-        }
+        chatsMap
+            .filterValues { it.chatId == cid }
+            .ifEmpty() {
+                throw ChatNotExistException("Chat with $cid not exists")
+            }
         messages.removeAll { m: Message -> m.chatId == cid }
         chatsMap.remove(cid)
     }
@@ -97,10 +102,11 @@ object ChatService {
         val msgIndex = getIndexById(mid) ?: throw MessageNotExistException("Message with $mid not exists")
         messages[msgIndex].isRead = true
         val chatId = messages[msgIndex].chatId
-        val unreadMessages = messages.filter { it.chatId == chatId && !it.isRead }
-        if (unreadMessages.isEmpty()) {
-            chatsMap[chatId]?.isRead = true
-        }
+        messages
+            .filter { it.chatId == chatId && !it.isRead }
+            .ifEmpty() {
+                chatsMap[chatId]?.isRead = true
+            }
     }
 
     fun printMessages() {
@@ -111,7 +117,7 @@ object ChatService {
         println(chatsMap)
     }
 
-    fun clear(){
+    fun clear() {
         messages.clear()
         chatsMap.clear()
         users.clear()
@@ -119,7 +125,7 @@ object ChatService {
         currentMessageId = 0
     }
 
-    fun messageCount():Int{
+    fun messageCount(): Int {
         return messages.size
     }
 }
